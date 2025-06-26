@@ -1,238 +1,166 @@
-from selenium import webdriver 
+from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from bs4 import BeautifulSoup
+import pandas as pd
+import sqlite3
 
-options = Options()
-options.add_argument("--headless")
-options.add_argument("--disable-gpu")
-options.add_argument("--no-sandbox")
-driver = webdriver.Chrome(options=options)
+# Lista global para almacenar resultados
+resultados = []
 
-def farmascrapper():
-    try:
-        url = "https://www.farmatodo.com.ve/buscar?product=flips&departamento=Alimentos+y+Bebidas&filtros="
-        driver.get(url)
-        html = driver.page_source
-        soup = BeautifulSoup(html, 'html.parser')
+def agregar_resultado(nombre, precio, fuente):
+    print(fuente)
+    resultados.append({
+        "id": len(resultados) + 1,
+        "nombre": nombre,
+        "imagen": "",
+        "precio": precio,
+        "fuente": fuente
+    })
 
-        productos = soup.find_all("a", class_="content-product")
-        for producto in productos:
-            nombre_element = producto.find('p', class_='text-title')
-            precio_element = producto.find('span', class_='price__text-price')
-            if not precio_element or not nombre_element:
-                continue
-            nombre = nombre_element.text.strip()
-            precio = precio_element.text.strip()
-            if "Flips" in nombre:
-                print(f"Producto: {nombre}, Precio: {precio}")
-    finally:
-        driver.quit()
+# Decorador que maneja driver
+def with_driver(scrapper_function):
+    def wrapper():
+        options = Options()
+        options.add_argument("--headless")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--no-sandbox")
+        driver = webdriver.Chrome(options=options)
+        try:
+            scrapper_function(driver)
+        finally:
+            driver.quit()
+    return wrapper
 
+@with_driver
+def farmascrapper(driver):
+    url = "https://www.farmatodo.com.ve/buscar?product=flips&departamento=Alimentos+y+Bebidas&filtros="
+    driver.get(url)
+    soup = BeautifulSoup(driver.page_source, 'html.parser')
+    productos = soup.find_all("a", class_="content-product")
+    for producto in productos:
+        nombre_element = producto.find('p', class_='text-title')
+        precio_element = producto.find('span', class_='price__text-price')
+        if nombre_element and precio_element and "Flips" in nombre_element.text:
+            agregar_resultado(nombre_element.text.strip(), precio_element.text.strip(), "Farmatodo")
+
+@with_driver
+def gammascrapper(driver):
+    url = "https://gamaenlinea.com/es/search/Flips"
+    driver.get(url)
+    soup = BeautifulSoup(driver.page_source, 'html.parser')
+    productos = soup.find_all("div", class_="product-item")
+    for producto in productos:
+        nombre = producto.find('h3')
+        precio = producto.find('div', class_='cx-product-price')
+        if nombre and precio and "FLIPS" in nombre.text:
+            try:
+                precio_text = precio.text.strip().split("Ref.")[1]
+            except IndexError:
+                precio_text = precio.text.strip()
+            agregar_resultado(nombre.text.strip(), precio_text, "Gama")
+
+@with_driver
+def locatelscrapper(driver):
+    url = "https://www.locatel.com.ve/flips?_q=flips&map=ft"
+    driver.get(url)
+    soup = BeautifulSoup(driver.page_source, 'html.parser')
+    productos = soup.find_all("div", class_="vtex-search-result-3-x-galleryItem")
+    for producto in productos:
+        nombre = producto.find('span', class_='vtex-product-summary-2-x-productBrand--NombreProducto')
+        precio = producto.find('div', class_='vtex-flex-layout-0-x-flexCol--PreciosVitrinaProducto')
+        if nombre and precio and "FLIPS" in nombre.text:
+            agregar_resultado(nombre.text.strip(), precio.text.strip(), "Locatel")
+
+@with_driver
+def farmahorrocrapper(driver):
+    url = "https://farmahorro.com.ve/etiqueta-producto/flips/?v=6898b9cae725"
+    driver.get(url)
+    soup = BeautifulSoup(driver.page_source, 'html.parser')
+    productos = soup.find_all('li', class_='one-product')
+    for producto in productos:
+        nombre = producto.find('h4')
+        precio = producto.find('bdi')
+        if nombre and precio and "Flips" in nombre.text:
+            agregar_resultado(nombre.text.strip(), precio.text.strip(), "Farmahorro")
+
+@with_driver
+def farmadonscrapper(driver):
+    url = "https://www.farmadon.com.ve/?s=flips&post_type=product&dgwt_wcas=1"
+    driver.get(url)
+    soup = BeautifulSoup(driver.page_source, 'html.parser')
+    productos = soup.find_all('section', class_='product')
+    for producto in productos:
+        nombre = producto.find('h3', class_='product-name')
+        precio = producto.find('bdi')
+        if nombre and precio and "Flips" in nombre.text:
+            agregar_resultado(nombre.text.strip(), precio.text.strip(), "Farmadon")
+
+@with_driver
+def caraotamarketscrapper(driver):
+    url = "https://caraotamarket.com/106_flips"
+    driver.get(url)
+    soup = BeautifulSoup(driver.page_source, 'html.parser')
+    productos = soup.find_all('article', class_='product-miniature')
+    for producto in productos:
+        nombre = producto.find('h2', class_='product-title')
+        precio = producto.find('span', class_='price')
+        if nombre and precio and "FLIPS" in nombre.text:
+            agregar_resultado(nombre.text.strip(), precio.text.strip(), "Caraota Market")
+
+@with_driver
+def plazascrapper(driver):
+    url = "https://sanbernardino.elplazas.com/catalogsearch/result/?q=flips"
+    driver.get(url)
+    soup = BeautifulSoup(driver.page_source, 'html.parser')
+    productos = soup.find_all('li', class_='product-item')
+    for producto in productos:
+        nombre = producto.find('a', class_='product-item-link')
+        precio = producto.find('span', class_='price')
+        if nombre and precio and "FLIPS" in nombre.text:
+            agregar_resultado(nombre.text.strip(), precio.text.strip(), "Plazas")
+
+@with_driver
+def mibodegascrapper(driver):
+    url = "https://mibodega.com.ve/?s=flips&post_type=product&dgwt_wcas=1"
+    driver.get(url)
+    soup = BeautifulSoup(driver.page_source, 'html.parser')
+    productos = soup.find_all('div', class_='product')
+    for producto in productos:
+        nombre = producto.find('a', class_='woocommerce-LoopProduct-link')
+        precio = producto.find('bdi')
+        if nombre and precio and "FLIPS" in nombre.text:
+            agregar_resultado(nombre.text.strip(), precio.text.strip(), "Mi Bodega")
+
+@with_driver
+def super99scrapper(driver):
+    url = "https://www.super99.com/catalogsearch/result/index/?cat=202&q=flips"
+    driver.get(url)
+    soup = BeautifulSoup(driver.page_source, 'html.parser')
+    productos = soup.find_all('div', class_='product')
+    for producto in productos:
+        nombre = producto.find('a', class_='product-item-link')
+        precio = producto.find('span', class_='price')
+        if nombre and precio and ("FLIPS" in nombre.text or "Flips" in nombre.text):
+            agregar_resultado(nombre.text.strip(), precio.text.strip(), "Super99")
+
+# Ejecutar scrapers
 farmascrapper()
-
-def gammascrapper():
-    try:
-        url = "https://gamaenlinea.com/es/search/Flips"
-        driver.get(url)
-        html = driver.page_source
-        soup = BeautifulSoup(html, 'html.parser')
-        tasa_html = soup.find("span", class_="currency-reference")
-        tasa_html_text = tasa_html.text
-        valor_bs = tasa_html_text.split("Bs.")[1].strip()
-        print(f"1$ = {valor_bs}")
-        productos = soup.find_all("div", class_="product-item")
-        for producto in productos:
-            nombre_element = producto.find('h3')
-            precio_element = producto.find('div', class_='cx-product-price')
-            if not precio_element or not nombre_element:
-                continue
-            precio = precio_element.text.strip().split("Ref.")[1]
-            nombre = nombre_element.text.strip()
-            if "FLIPS" in nombre:
-                print(f"Producto: {nombre}, Precio: {precio}")
-    finally:
-        driver.quit()
-
 gammascrapper()
-
-def locatelscrapper():
-    try:
-        url = "https://www.locatel.com.ve/flips?_q=flips&map=ft"
-        driver.get(url)
-        html = driver.page_source
-        soup = BeautifulSoup(html, 'html.parser')
-        productos = soup.find_all("div", class_="vtex-search-result-3-x-galleryItem")
-        for producto in productos:
-            nombre_element = producto.find('span', class_='vtex-product-summary-2-x-productBrand--NombreProducto')
-            precio_element = producto.find('div', class_='vtex-flex-layout-0-x-flexCol--PreciosVitrinaProducto')
-
-            if not precio_element or not nombre_element:
-                continue
-            nombre = nombre_element.text.strip()
-            precio = precio_element.text.strip()
-            if "FLIPS" in nombre:
-                print(f"Producto: {nombre}, Precio: {precio}")
-    finally:
-        driver.quit()
-
 locatelscrapper()
-
-def farmahorrocrapper():
-    try:
-        url = "https://farmahorro.com.ve/etiqueta-producto/flips/?v=6898b9cae725"
-        driver.get(url)
-        html = driver.page_source
-        soup = BeautifulSoup(html, 'html.parser')
-        productos = soup.find_all('li', class_='one-product')
-
-        for producto in productos:
-            nombre_element = producto.find('h4')
-            precio_element = producto.find('bdi')
-
-            if not precio_element or not nombre_element:
-                continue
-            nombre = nombre_element.text.strip()
-            precio = precio_element.text.strip()
-            if "Flips" in nombre:
-                print(f"Producto: {nombre}, Precio: {precio}")
-    finally:
-        driver.quit()
-
 farmahorrocrapper()
-
-def farmadonscrapper():
-    try:
-        url = "https://www.farmadon.com.ve/?s=flips&post_type=product&dgwt_wcas=1"
-
-        driver.get(url)
-
-        html = driver.page_source
-
-        soup = BeautifulSoup(html, 'html.parser')
-
-        productos = soup.find_all('section', class_='product')
-
-        for producto in productos:
-            nombre_element = producto.find('h3', class_='product-name')
-            precio_element = producto.find('bdi')
-
-            if not precio_element or not nombre_element:
-                continue
-            nombre = nombre_element.text.strip()
-            precio = precio_element.text.strip()
-            if "Flips" in nombre:
-                print(f"Producto: {nombre}, Precio: {precio}")
-    finally:
-        driver.quit()
-
 farmadonscrapper()
-
-def caraotamarketscrapper():
-    try:
-        url = "https://caraotamarket.com/106_flips"
-
-        driver.get(url)
-
-        html = driver.page_source
-
-        soup = BeautifulSoup(html, 'html.parser')
-
-        productos = soup.find_all('article', class_='product-miniature')
-
-        for producto in productos:
-            nombre_element = producto.find('h2', class_='product-title')
-            precio_element = producto.find('span', class_='price')
-
-            if not precio_element or not nombre_element:
-                continue
-            nombre = nombre_element.text.strip()
-            precio = precio_element.text.strip()
-            if "FLIPS" in nombre:
-                print(f"Producto: {nombre}, Precio: {precio}")
-    finally:
-        driver.quit()
-
 caraotamarketscrapper()
-
-def plazascrapper():
-    try:
-        url = "https://sanbernardino.elplazas.com/catalogsearch/result/?q=flips"
-
-        driver.get(url)
-
-        html = driver.page_source
-
-        soup = BeautifulSoup(html, 'html.parser')
-
-        productos = soup.find_all('li', class_='product-item')
-
-        for producto in productos:
-            nombre_element = producto.find('a', class_='product-item-link')
-            precio_element = producto.find('span', class_='price')
-
-            if not precio_element or not nombre_element:
-                continue
-            nombre = nombre_element.text.strip()
-            precio = precio_element.text.strip()
-            if "FLIPS" in nombre:
-                print(f"Producto: {nombre}, Precio: {precio}")
-    finally:
-        driver.quit()
-
 plazascrapper()
-
-def mibodegascrapper():
-    try:
-        url = "https://mibodega.com.ve/?s=flips&post_type=product&dgwt_wcas=1"
-
-        driver.get(url)
-
-        html = driver.page_source
-
-        soup = BeautifulSoup(html, 'html.parser')
-
-        productos = soup.find_all('div', class_='product')
-
-        for producto in productos:
-            nombre_element = producto.find('a', class_='woocommerce-LoopProduct-link')
-            precio_element = producto.find('bdi')
-
-            if not precio_element or not nombre_element:
-                continue
-            nombre = nombre_element.text.strip()
-            precio = precio_element.text.strip()
-            if "FLIPS" in nombre:
-                print(f"Producto: {nombre}, Precio: {precio}")
-    finally:
-        driver.quit()
-
 mibodegascrapper()
-
-def super99scrapper():
-    try:
-        url = "https://www.super99.com/catalogsearch/result/index/?cat=202&q=flips"
-
-        driver.get(url)
-
-        html = driver.page_source
-
-        soup = BeautifulSoup(html, 'html.parser')
-
-        productos = soup.find_all('div', class_='product')
-
-        for producto in productos:
-            nombre_element = producto.find('a', class_='product-item-link')
-            precio_element = producto.find('span', class_='price')
-
-            if not precio_element or not nombre_element:
-                continue
-
-            nombre = nombre_element.text.strip()
-            precio = precio_element.text.strip()
-
-            if "FLIPS" in nombre or "Flips" in nombre:
-                print(f"Producto: {nombre}, Precio: {precio}")
-    finally:
-        driver.quit()
-
 super99scrapper()
+
+# Guardar resultados
+
+# Excel
+df = pd.DataFrame(resultados)
+df.to_excel("productos_flips.xlsx", index=False)
+
+# SQLite
+conn = sqlite3.connect("productos_flips.db")
+df.to_sql("productos_flips", conn, if_exists="replace", index=False)
+conn.close()
