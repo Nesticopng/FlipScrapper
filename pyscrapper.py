@@ -1,19 +1,22 @@
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
 import pandas as pd
 import sqlite3
 
 # Lista global para almacenar resultados
 resultados = []
+dolar = 0
 
 def agregar_resultado(nombre, precio, fuente):
-    print(fuente)
     resultados.append({
         "id": len(resultados) + 1,
         "nombre": nombre,
-        "imagen": "",
-        "precio": precio,
+        "precio_bs": precio,
+        "precio_usd": precio,
         "fuente": fuente
     })
 
@@ -24,12 +27,22 @@ def with_driver(scrapper_function):
         options.add_argument("--headless")
         options.add_argument("--disable-gpu")
         options.add_argument("--no-sandbox")
+        options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
         driver = webdriver.Chrome(options=options)
         try:
             scrapper_function(driver)
         finally:
             driver.quit()
     return wrapper
+
+@with_driver
+def bcv(driver):
+    url = "https://www.bcv.org.ve/"
+    driver.get(url)
+    soup = BeautifulSoup(driver.page_source, 'html.parser')
+    dolar_div = soup.find("div", id="dolar")
+    dolar_txt = dolar_div.find("strong")
+    dolar = float(dolar_txt.text.replace("Bs. ", "").replace(",", "."))
 
 @with_driver
 def farmascrapper(driver):
@@ -40,6 +53,7 @@ def farmascrapper(driver):
     for producto in productos:
         nombre_element = producto.find('p', class_='text-title')
         precio_element = producto.find('span', class_='price__text-price')
+
         if nombre_element and precio_element and "Flips" in nombre_element.text:
             agregar_resultado(nombre_element.text.strip(), precio_element.text.strip(), "Farmatodo")
 
@@ -144,15 +158,16 @@ def super99scrapper(driver):
             agregar_resultado(nombre.text.strip(), precio.text.strip(), "Super99")
 
 # Ejecutar scrapers
-farmascrapper()
-gammascrapper()
-locatelscrapper()
-farmahorrocrapper()
-farmadonscrapper()
-caraotamarketscrapper()
-plazascrapper()
-mibodegascrapper()
-super99scrapper()
+bcv()
+#farmascrapper()
+#gammascrapper()
+#locatelscrapper()
+#farmahorrocrapper()
+#farmadonscrapper()
+#caraotamarketscrapper()
+#plazascrapper()
+#mibodegascrapper()
+#super99scrapper()
 
 # Guardar resultados
 
